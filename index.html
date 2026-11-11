@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' blob: data:; img-src 'self' blob: data:; media-src 'self' blob: mediastream:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'">
+<meta name="theme-color" content="#0b0d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>360 Fisheye Cam</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app" class="app">
+  <header class="topbar">
+    <div class="brand"><span class="brand-dot"></span>360 Fisheye Cam</div>
+    <div class="top-actions">
+      <button id="btnCompare" class="chip-btn" type="button" title="Hold to see the original" hidden>Compare</button>
+      <button id="btnSource" class="chip-btn" type="button" hidden>Open</button>
+      <button id="btnHelp" class="icon-btn" type="button" aria-label="About this app">?</button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="view" aria-label="Processed preview"></canvas>
+    <div class="badge" id="badge" hidden>360-style effect</div>
+    <div class="status" id="status" hidden></div>
+    <div class="rec-timer" id="recTimer" hidden><span class="rec-dot"></span><span id="recTime">0:00</span></div>
+
+    <section class="welcome" id="welcome">
+      <h1>Look like you shot it on a 360 camera.</h1>
+      <p>Tiny-planet and extreme-fisheye looks from your normal camera — even sitting down. Record live, or apply it to a photo or video you already have.</p>
+      <div class="welcome-actions">
+        <button id="btnStartCamera" class="primary" type="button">Start camera</button>
+        <button id="btnOpenFile" class="secondary" type="button">Open a photo or video</button>
+      </div>
+      <p class="fine">Everything is processed on this device. Nothing is uploaded.</p>
+      <p class="fine warn" id="inAppWarn" hidden>You seem to be inside another app's browser. If the camera doesn't start, open this page in Safari or Chrome.</p>
+    </section>
+  </main>
+
+  <section class="looks" aria-label="Background">
+    <div class="looks-row" id="looks" role="radiogroup"></div>
+    <p class="look-hint" id="lookHint"></p>
+  </section>
+
+  <nav class="controls" id="controls" hidden>
+    <button id="btnAdjust" class="ctl" type="button"><span class="ctl-ico">☰</span><span>Adjust</span></button>
+    <div class="ctl-center" id="cameraCtl">
+      <button id="btnPhoto" class="ctl" type="button"><span class="ctl-ico">◉</span><span>Photo</span></button>
+      <button id="btnRecord" class="shutter" type="button" aria-label="Record"><span></span></button>
+      <button id="btnFlip" class="ctl" type="button"><span class="ctl-ico">⇆</span><span>Flip</span></button>
+    </div>
+    <div class="ctl-center" id="fileCtl" hidden>
+      <button id="btnPlay" class="ctl" type="button"><span class="ctl-ico" id="playIco">▶</span><span id="playLabel">Play</span></button>
+      <input id="seek" class="seek" type="range" min="0" max="1000" value="0" aria-label="Position">
+      <span class="time" id="time">0:00</span>
+      <button id="btnExport" class="primary small" type="button">Export</button>
+    </div>
+    <button id="btnCamera" class="ctl" type="button"><span class="ctl-ico">⌁</span><span id="switchLabel">Camera</span></button>
+  </nav>
+
+  <aside class="sheet" id="sheet" aria-label="Adjustments" hidden>
+    <div class="sheet-head">
+      <strong id="sheetTitle">Adjust</strong>
+      <div>
+        <button id="btnReset" class="chip-btn" type="button">Reset</button>
+        <button id="btnCloseSheet" class="icon-btn" type="button" aria-label="Close">✕</button>
+      </div>
+    </div>
+    <div class="sheet-body">
+      <div id="bgImageRow" class="field-row" hidden>
+        <span class="field-label">Planet image</span>
+        <span class="field-note" id="bgImageNote">None chosen</span>
+        <button id="btnBgImage" class="chip-btn" type="button">Choose image</button>
+      </div>
+      <div id="paramFields"></div>
+      <h3 class="group-title">Output</h3>
+      <label class="field">
+        <span class="field-label">Frame</span>
+        <select id="optAspect">
+          <option value="original">Same as source</option>
+          <option value="9:16">9:16 (TikTok, Reels)</option>
+          <option value="1:1">1:1 square</option>
+          <option value="16:9">16:9 wide</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">Quality</span>
+        <select id="optQuality">
+          <option value="1280">Standard (up to 1280 px)</option>
+          <option value="1920">High (up to 1920 px)</option>
+        </select>
+      </label>
+      <label class="field toggle">
+        <span class="field-label">Mirror</span>
+        <input id="optMirror" type="checkbox">
+      </label>
+      <p class="fine" id="sourceInfo"></p>
+    </div>
+  </aside>
+
+  <div class="modal" id="progressModal" hidden>
+    <div class="card">
+      <strong id="progressTitle">Exporting video…</strong>
+      <div class="bar"><div id="progressBar"></div></div>
+      <p class="fine" id="progressNote"></p>
+      <button id="btnCancelExport" class="secondary" type="button">Cancel</button>
+    </div>
+  </div>
+
+  <div class="modal" id="resultModal" hidden>
+    <div class="card result">
+      <div class="result-media" id="resultMedia"></div>
+      <p class="fine" id="resultNote"></p>
+      <div class="result-actions">
+        <button id="btnSave" class="primary" type="button">Save / Share</button>
+        <button id="btnCloseResult" class="secondary" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="helpModal" hidden>
+    <div class="card help">
+      <strong>About these effects</strong>
+      <p><b>Tiny planet</b> cuts you out of the camera picture and places you, through a fisheye lens, in front of a tiny-planet scene. The built-in scene is an illustration; choose <b>My planet image</b> to use your own picture (a 2:1 360° panorama gives a true tiny planet; other photos are mirrored to close the circle).</p>
+      <p><b>Real background · planet</b> curls your real surroundings into a planet. A normal camera only sees what is in front of it, so the area outside its view is filled by mirroring and blending the edges of the picture. It is a 360-style effect, not a 360° capture.</p>
+      <p><b>Real background · fisheye</b> is an extreme fisheye lens with a face pop that follows your face.</p>
+      <p><b>Tips:</b> hold the phone at arm's length a little above eye level and tilt it down. Good light helps face tracking and the cut-out.</p>
+      <p class="fine">All processing happens on this device. Face tracking and the cut-out use Google MediaPipe models that are stored with this app.</p>
+      <button id="btnCloseHelp" class="secondary" type="button">Close</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <video id="camVideo" class="hidden-media" playsinline muted></video>
+  <video id="fileVideo" class="hidden-media" playsinline></video>
+  <input id="fileInput" type="file" accept="image/*,video/*" hidden>
+  <input id="bgInput" type="file" accept="image/*" hidden>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
